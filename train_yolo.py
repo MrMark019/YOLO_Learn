@@ -24,10 +24,10 @@ def train_yolo():
     training_config = {
         'data': 'data.yaml',           # 数据集配置文件
         'epochs': 100,                 # 训练轮数
-        'batch': 16,                   # 批次大小（根据显存调整）
+        'batch': 128,                  # 批次大小（根据显存调整）
         'imgsz': 640,                  # 输入图像尺寸
         'device': 0,                   # GPU 设备（0 表示第一个 GPU，cpu 表示 CPU）
-        'workers': 4,                  # 数据加载线程数
+        'workers': 8,                  # 数据加载线程数
         'optimizer': 'SGD',            # 优化器
         'lr0': 0.01,                   # 初始学习率
         'patience': 50,                # 早停耐心值

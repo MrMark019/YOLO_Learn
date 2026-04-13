@@ -66,7 +66,7 @@ python test_yolo.py batch datasets/se00n00/nature3-leaf-flower-and-fruit-detecti
 
 ```python
 training_config = {
-    'batch': 8,      # 减小批次大小（默认 16）
+    'batch': 8,      # 减小批次大小（默认 128）
     'imgsz': 416,    # 减小图像尺寸（默认 640）
     # ...
 }
