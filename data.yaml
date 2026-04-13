@@ -1,6 +1,6 @@
 # YOLO 植物器官检测数据集配置
 # 数据集路径
-path: d:\MarkLab\YOLO_Learn\datasets\se00n00\nature3-leaf-flower-and-fruit-detection\versions\1
+path: datasets/se00n00/nature3-leaf-flower-and-fruit-detection/versions/1
 
 # 训练集、验证集、测试集路径（相对于 path）
 train: train/images

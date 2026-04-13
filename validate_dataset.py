@@ -6,6 +6,7 @@
 import os
 import yaml
 from pathlib import Path
+from collections import Counter
 from PIL import Image
 
 def validate_dataset():
@@ -15,8 +16,15 @@ def validate_dataset():
     print("数据集验证")
     print("=" * 60)
     
-    # 数据集根目录
-    dataset_root = Path(r"d:\MarkLab\YOLO_Learn\datasets\se00n00\nature3-leaf-flower-and-fruit-detection\versions\1")
+    repo_root = Path(__file__).resolve().parent
+    data_yaml_repo_path = repo_root / "data.yaml"
+
+    with open(data_yaml_repo_path, 'r', encoding='utf-8') as f:
+        repo_data_config = yaml.safe_load(f)
+
+    dataset_root = Path(repo_data_config["path"])
+    if not dataset_root.is_absolute():
+        dataset_root = repo_root / dataset_root
     
     # 1. 检查 data.yaml
     print("\n[1/6] 检查 data.yaml 配置文件...")
@@ -92,15 +100,15 @@ def validate_dataset():
     
     # 5. 检查标注格式
     print("\n[5/6] 检查标注格式...")
-    
+
     sample_label_file = list((dataset_root / "train" / "labels").glob("*.txt"))[0]
-    
+
     with open(sample_label_file, 'r', encoding='utf-8') as f:
         lines = f.readlines()
-    
+
     print(f"  样本文件：{sample_label_file.name}")
     print(f"  标注数量：{len(lines)}")
-    
+
     # 检查第一行格式
     if len(lines) > 0:
         parts = lines[0].strip().split()
@@ -112,15 +120,66 @@ def validate_dataset():
             print(f"    Y 中心：{y_center:.4f} (有效范围：0-1)")
             print(f"    宽度：{width:.4f} (有效范围：0-1)")
             print(f"    高度：{height:.4f} (有效范围：0-1)")
-            
+
             if 0 <= class_id <= 2 and all(0 <= v <= 1 for v in [x_center, y_center, width, height]):
-                print("[OK] 标注格式正确")
+                print("[OK] 样本标注格式正确")
             else:
-                print("❌ 错误：标注值超出有效范围")
+                print("❌ 错误：样本标注值超出有效范围")
                 return False
         else:
-            print("❌ 错误：标注格式不正确（应该是 5 个值）")
+            print("❌ 错误：样本标注格式不正确（应该是 5 个值）")
             return False
+
+    invalid_label_files = []
+    class_counter = Counter()
+
+    for split in splits:
+        for label_file in (dataset_root / split / "labels").glob("*.txt"):
+            file_has_error = False
+            with open(label_file, 'r', encoding='utf-8') as f:
+                for line_number, line in enumerate(f, start=1):
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+
+                    parts = stripped.split()
+                    if len(parts) != 5:
+                        invalid_label_files.append((split, label_file.name, line_number, "字段数量不是 5"))
+                        file_has_error = True
+                        continue
+
+                    try:
+                        class_id, x_center, y_center, width, height = map(float, parts)
+                    except ValueError:
+                        invalid_label_files.append((split, label_file.name, line_number, "存在非数字字段"))
+                        file_has_error = True
+                        continue
+
+                    class_counter[int(class_id)] += 1
+                    if int(class_id) < 0 or int(class_id) > 2:
+                        invalid_label_files.append(
+                            (split, label_file.name, line_number, f"类别 ID {int(class_id)} 超出 0-2")
+                        )
+                        file_has_error = True
+                        continue
+
+                    if not all(0 <= v <= 1 for v in [x_center, y_center, width, height]):
+                        invalid_label_files.append(
+                            (split, label_file.name, line_number, "坐标值超出 0-1")
+                        )
+                        file_has_error = True
+
+            if file_has_error:
+                continue
+
+    print(f"  类别分布：{dict(sorted(class_counter.items()))}")
+    if invalid_label_files:
+        print(f"  ⚠️ 检测到 {len(invalid_label_files)} 条异常标注，以下为前 10 条：")
+        for split, file_name, line_number, reason in invalid_label_files[:10]:
+            print(f"    - {split}/{file_name}:{line_number} -> {reason}")
+        print("  ⚠️ Ultralytics 训练时会自动跳过这些异常标注对应的样本")
+    else:
+        print("[OK] 所有标注均在有效范围内")
     
     # 6. 检查图像尺寸
     print("\n[6/6] 检查图像尺寸...")
@@ -138,7 +197,11 @@ def validate_dataset():
     print("数据集验证完成！")
     print("=" * 60)
     print("[OK] 数据集结构正确")
-    print("[OK] 文件格式正确")
+    if invalid_label_files:
+        print(f"[WARN] 检测到 {len(invalid_label_files)} 条异常标注")
+        print("[WARN] 训练时会跳过对应异常样本")
+    else:
+        print("[OK] 文件格式正确")
     print("[OK] 可以开始训练")
     
     return True

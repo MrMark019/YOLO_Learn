@@ -17,6 +17,7 @@ __pycache__/
 *.so
 
 # 虚拟环境
+.venv/
 venv/
 env/
 .env/
@@ -33,3 +34,9 @@ Thumbs.db
 # 临时文件
 *.tmp
 *.log
+
+# 训练时下载的预训练权重
+yolo*.pt
+
+# 本地清洗报告
+cleaning_reports/
