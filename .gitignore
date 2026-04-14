@@ -3,6 +3,10 @@ datasets/
 *.csv
 Flowers in Pots.csv
 
+# 预训练模型（会自动下载，不上传）
+*.pt
+!runs/**/*.pt
+
 # 训练输出（每次训练结果不同）
 runs/
 
