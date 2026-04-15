@@ -15,7 +15,7 @@ def validate_model():
     print("=" * 60)
     
     # 模型路径
-    model_path = 'runs/detect/plant_organ_detection/weights/best.pt'
+    model_path = 'models/plant_organ_detection_h100x2_best.pt'
     
     if not os.path.exists(model_path):
         print(f"错误：模型文件不存在：{model_path}")
@@ -52,7 +52,7 @@ def predict_image(image_path):
     print("=" * 60)
     
     # 模型路径
-    model_path = 'runs/detect/plant_organ_detection/weights/best.pt'
+    model_path = 'models/plant_organ_detection_h100x2_best.pt'
     
     if not os.path.exists(model_path):
         print(f"错误：模型文件不存在：{model_path}")
@@ -100,7 +100,7 @@ def predict_batch(image_folder):
     print("=" * 60)
     
     # 模型路径
-    model_path = 'runs/detect/plant_organ_detection/weights/best.pt'
+    model_path = 'models/plant_organ_detection_h100x2_best.pt'
     
     if not os.path.exists(model_path):
         print(f"错误：模型文件不存在：{model_path}")

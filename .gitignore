@@ -1,7 +1,15 @@
 # 数据集文件（太大，不上传）
 datasets/
+!datasets/indoor_potted_plant/data.yaml
 *.csv
 Flowers in Pots.csv
+
+# 本地数据集和测试素材
+homeobjects-3K/
+testing_pic/
+prediction_result.jpg
+structure.md
+.claude/
 
 # 预训练模型（会自动下载，不上传）
 *.pt
