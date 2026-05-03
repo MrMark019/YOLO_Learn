@@ -1,66 +1,134 @@
-# Raspberry Pi OpenCV 方框（口）识别
+# YOLO 盆栽植物检测
 
-这个项目提供一个可直接在树莓派上运行的 OpenCV 脚本，用来识别画面中的方框形（`口`）。识别逻辑会同时寻找：
+基于 Ultralytics YOLOv8 的室内盆栽植物检测项目，支持树莓派等边缘设备部署。
 
-- 一个近似正方形/矩形的外轮廓
-- 一个位于其中的内轮廓
-- 内外轮廓形成“空心方框”
+## 项目概述
 
-## 文件
+本项目包含两个检测任务：
 
-- `square_frame_detector.py`：主程序
+| 任务 | 模型 | 数据集 | 类别 | 用途 |
+|------|------|--------|------|------|
+| 室内盆栽检测 | YOLOv8n | HomeObjects-3K | potted plant | 树莓派实时检测 |
+| 植物器官检测 | YOLOv8n/l | Nature3 | leaf, flower, fruit | 植物器官识别 |
 
-## 树莓派安装依赖
+## 项目结构
 
-建议先用系统包安装 OpenCV：
-
-```bash
-sudo apt update
-sudo apt install -y python3-opencv python3-numpy
+```
+├── train_indoor_plant.py       # 室内盆栽训练脚本（树莓派优化）
+├── test_indoor_plant.py        # 室内盆栽测试/推理/导出脚本
+├── benchmark_ncnn.py           # PyTorch vs NCNN 速度对比
+├── test_camera_ncnn.py         # NCNN 摄像头实时推理
+├── train_yolo.py               # 植物器官检测训练脚本
+├── test_yolo.py                # 植物器官检测测试脚本
+├── square_frame_detector.py    # OpenCV 方框识别（辅助工具）
+├── data.yaml                   # 植物器官数据集配置
+├── datasets/
+│   ├── indoor_potted_plant/    # 室内盆栽数据集
+│   └── se00n00/                # Nature3 植物器官数据集
+└── runs/
+    └── detect/
+        └── indoor_potted_plant_pi/
+            └── weights/
+                ├── best.pt         # PyTorch 模型
+                └── best_ncnn_model # NCNN 模型（树莓派）
 ```
 
-如果你的树莓派还没有启用摄像头，先执行：
+## 快速开始
+
+### 环境安装
 
 ```bash
-sudo raspi-config
+pip install ultralytics opencv-python
 ```
 
-然后在界面中启用 Camera，重启系统。
+### 室内盆栽检测（推荐）
 
-## 运行方式
-
-实时摄像头识别：
+**训练模型：**
 
 ```bash
-python3 square_frame_detector.py
+python train_indoor_plant.py
 ```
 
-如果默认摄像头不是 `0`：
+训练参数：YOLOv8n，图像尺寸 416x416，batch 32（GPU）/ 8（CPU），100 epochs。
+
+**测试集验证：**
 
 ```bash
-python3 square_frame_detector.py --camera 1
+python test_indoor_plant.py validate
 ```
 
-如果想在测试图上验证：
+**单张图像推理：**
 
 ```bash
-python3 square_frame_detector.py --image test.png
+python test_indoor_plant.py predict <图像路径>
 ```
 
-## 可调参数
-
-- `--min-area`：最小外轮廓面积
-- `--aspect-tolerance`：对正方形比例的容差
-- `--approx-epsilon`：轮廓近似参数
-- `--threshold-block-size`：自适应阈值块大小
-- `--threshold-c`：自适应阈值常量
-
-例如：
+**摄像头实时检测：**
 
 ```bash
-python3 square_frame_detector.py --min-area 4000 --aspect-tolerance 0.45
+python test_indoor_plant.py camera
 ```
 
-## 退出
+**导出 ONNX / NCNN 格式：**
 
-运行时按 `q` 退出。
+```bash
+python test_indoor_plant.py export
+```
+
+### 植物器官检测
+
+```bash
+python train_yolo.py
+```
+
+数据集：Nature3（28,694 训练 + 3,700 验证 + 2,934 测试），类别：leaf、flower、fruit。
+
+## 树莓派部署
+
+推荐使用 NCNN 格式加速推理：
+
+```python
+from ultralytics import YOLO
+
+model = YOLO('runs/detect/indoor_potted_plant_pi/weights/best_ncnn_model')
+results = model(frame, imgsz=320, conf=0.5, verbose=False)
+```
+
+性能优化建议：
+- `imgsz=320`：降低推理延迟
+- `conf=0.5`：过滤低置信度结果
+- 使用 NCNN 格式替代 PyTorch，ARM 设备上速度更快
+
+## 性能基准
+
+运行 PyTorch vs NCNN 速度对比：
+
+```bash
+python benchmark_ncnn.py
+```
+
+## 数据集
+
+### 室内盆栽（HomeObjects-3K）
+
+| 集合 | 数量 |
+|------|------|
+| 训练集 | 1,425 张 |
+| 验证集 | 318 张 |
+| 测试集 | 159 张 |
+
+### 植物器官（Nature3）
+
+| 集合 | 数量 |
+|------|------|
+| 训练集 | 28,694 张 |
+| 验证集 | 3,700 张 |
+| 测试集 | 2,934 张 |
+
+## 依赖
+
+- Python 3.8+
+- ultralytics
+- opencv-python
+- torch
+- numpy
