@@ -1,0 +1,15 @@
+[Unit]
+Description=YOLO Plant Detection Serial Listener
+After=network.target
+
+[Service]
+Type=simple
+User=mark
+WorkingDirectory=/home/mark/YOLO_Learn
+ExecStart=/home/mark/YOLO_Learn/venv/bin/python3 /home/mark/YOLO_Learn/test_camera_onnx_headless.py
+Restart=always
+RestartSec=5
+Environment="DISPLAY=:0"
+
+[Install]
+WantedBy=multi-user.target

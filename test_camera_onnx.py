@@ -8,6 +8,11 @@ import numpy as np
 import time
 import os
 import onnxruntime as ort
+import serial
+
+# 串口配置（树莓派 GPIO 14/15 -> /dev/serial0）
+SERIAL_PORT = "/dev/serial0"
+SERIAL_BAUD = 115200
 
 MODEL_PATH = "runs/detect/indoor_potted_plant_pi/weights/best.onnx"
 IMSZ = 416      # 模型固定输入尺寸
@@ -85,6 +90,18 @@ class PlantDetector:
         return annotated
 
 
+def format_serial_data(frame_count, detections):
+    """格式化串口数据: F=帧号,P=盆栽数,B=x1,y1,x2,y2,conf;x1,y1,x2,y2,conf...\n"""
+    parts = [f"F={frame_count}", f"P={len(detections)}"]
+    if detections:
+        box_strs = []
+        for box, conf in detections:
+            x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+            box_strs.append(f"{x1},{y1},{x2},{y2},{conf:.2f}")
+        parts.append("B=" + ";".join(box_strs))
+    return ",".join(parts) + "\n"
+
+
 def main(camera_index: int = 0):
     os.environ.setdefault("DISPLAY", ":0")
 
@@ -97,6 +114,14 @@ def main(camera_index: int = 0):
         print(f"错误: 模型不存在 {MODEL_PATH}")
         return
 
+    # 初始化串口
+    ser = None
+    try:
+        ser = serial.Serial(SERIAL_PORT, SERIAL_BAUD, timeout=0.1)
+        print(f"串口已打开: {SERIAL_PORT} @ {SERIAL_BAUD}")
+    except Exception as e:
+        print(f"警告: 串口打开失败 ({e}), 将继续运行但不发送串口数据")
+
     print("加载模型...")
     detector = PlantDetector(MODEL_PATH)
     print("模型加载完成")
@@ -108,6 +133,8 @@ def main(camera_index: int = 0):
 
     if not cap.isOpened():
         print(f"错误: 摄像头 {camera_index} 无法打开")
+        if ser:
+            ser.close()
         return
 
     save_dir = os.path.join("camera_captures", f"onnx_cam_{camera_index}")
@@ -121,6 +148,8 @@ def main(camera_index: int = 0):
     last_log = prev_time
 
     print(f"\n截图目录: {save_dir}/")
+    print(f"串口: {SERIAL_PORT} @ {SERIAL_BAUD}")
+    print("数据格式: F=帧号,P=盆栽数,B=cx,cy,conf;...")
     print("摄像头已启动！请对准盆栽。\n")
 
     try:
@@ -138,6 +167,14 @@ def main(camera_index: int = 0):
 
             t1 = time.time()
             inf_time = t1 - t0
+
+            # 串口发送检测数据
+            if ser and ser.is_open:
+                try:
+                    msg = format_serial_data(frame_count, detections)
+                    ser.write(msg.encode("utf-8"))
+                except Exception as e:
+                    print(f"  串口发送失败: {e}")
 
             # FPS
             now = time.time()
@@ -200,6 +237,9 @@ def main(camera_index: int = 0):
 
     cap.release()
     cv2.destroyAllWindows()
+    if ser and ser.is_open:
+        ser.close()
+        print("串口已关闭")
     print(f"\n共处理 {frame_count} 帧")
     print(f"截图在: {save_dir}/")
 

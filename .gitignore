@@ -48,3 +48,13 @@ yolo*.pt
 
 # 本地清洗报告
 cleaning_reports/
+
+# 包含明文密码的本地 SSH 脚本（不上传 GitHub）
+ssh_pi.py
+ssh_pi_dhu.py
+upload_to_pi.py
+.env
+
+# 大型二进制/部署包（超过 GitHub 100MB 限制或可重新生成）
+linux.zip
+camera_captures/
