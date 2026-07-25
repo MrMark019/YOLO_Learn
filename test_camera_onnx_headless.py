@@ -16,6 +16,8 @@ import numpy as np
 import time
 import os
 import sys
+import threading
+import queue
 import onnxruntime as ort
 import serial
 
@@ -150,6 +152,29 @@ def main(camera_index: int = 0):
     except Exception as e:
         print(f"[WARN] 串口打开失败 ({e}), 继续运行但不发送串口数据")
 
+    # ========== 新增：Web 控制器方向键命令接收 ==========
+    # 命令接收队列（Web服务器通过stdin发送方向键命令）
+    cmd_queue = queue.Queue()
+
+    def stdin_reader():
+        """后台线程读取stdin命令，不阻塞主循环"""
+        while True:
+            try:
+                line = sys.stdin.readline()
+                if line:
+                    # 二进制模式下解码为字符串
+                    if isinstance(line, bytes):
+                        line = line.decode("utf-8", errors="ignore")
+                    cmd = line.strip()
+                    if cmd:
+                        cmd_queue.put(cmd)
+            except Exception:
+                break
+
+    # 启动stdin读取线程（daemon=True，主程序退出时自动结束）
+    threading.Thread(target=stdin_reader, daemon=True).start()
+    # ========== 新增结束 ==========
+
     print("加载模型...")
     detector = PlantDetector(MODEL_PATH)
     print("[OK] 模型加载完成")
@@ -181,13 +206,33 @@ def main(camera_index: int = 0):
 
     print(f"\n截图目录: {save_dir}/")
     print(f"串口: {SERIAL_PORT} @ {SERIAL_BAUD}")
+    print("[INFO] stdin 命令接收线程已启动")
     print("控制方式:")
     print("  - ESP32 发送 START/STOP 控制检测启停")
+    print("  - Web控制器 发送 w/a/s/d/8/2/4/6 控制方向")
     print("  - Ctrl+C 退出程序")
     print("=" * 60)
 
     try:
         while True:
+            # ---- 读取 stdin 命令 (Web控制器发来的方向键) ----
+            while not cmd_queue.empty():
+                cmd = cmd_queue.get()
+                if cmd == "START":
+                    if not running:
+                        running = True
+                        print("[CMD] 收到 START -> 开始检测")
+                elif cmd == "STOP":
+                    if running:
+                        running = False
+                        print("[CMD] 收到 STOP -> 暂停检测")
+                elif ser and ser.is_open:
+                    try:
+                        ser.write((cmd + "\n").encode("utf-8"))
+                        print(f"[CMD] 串口发送(Web): {cmd}")
+                    except Exception as e:
+                        print(f"[WARN] 串口命令发送失败: {e}")
+
             # ---- 读取串口命令 (非阻塞) ----
             cmd = read_serial_command(ser)
             if cmd == "START":

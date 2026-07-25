@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>YOLO 植物检测控制器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Socket.IO client -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 标题栏 -->
+        <header class="header">
+            <h1>YOLO 植物检测控制器</h1>
+            <div class="status-bar">
+                <span id="conn-status" class="badge disconnected">未连接</span>
+                <span id="yolo-status" class="badge stopped">识别已停止</span>
+                <span id="live-stats" class="badge">FPS: -- | Plants: --</span>
+            </div>
+        </header>
+
+        <!-- 硬件诊断告警区 -->
+        <div id="diag-banner" class="diag-banner" style="display:none;"></div>
+
+        <!-- 硬件信息条 -->
+        <div id="diag-info" class="diag-info">
+            <span class="diag-item" id="diag-temp">T: --</span>
+            <span class="diag-item" id="diag-freq">F: --</span>
+            <span class="diag-item" id="diag-gov">G: --</span>
+            <span class="diag-item" id="diag-cam">C: --</span>
+            <button id="btn-checks" class="btn-small">硬件自检</button>
+        </div>
+
+        <!-- 主控制区 -->
+        <main class="main-content">
+            <!-- 左栏：控制按钮 + 日志 -->
+            <div class="left-panel">
+                <!-- 方向控制区 -->
+                <section class="control-section">
+                    <div class="control-pair">
+                        <!-- 左方向键：小车控制 -->
+                        <div class="dpad">
+                            <h3>小车控制</h3>
+                            <p class="dpad-label">WASD + Q/E</p>
+                            <div class="dpad-grid">
+                                <button class="dpad-btn" data-key="q" data-target="car">&#x21B6;</button>
+                                <button class="dpad-btn" data-key="w" data-target="car">&#x25B2;</button>
+                                <button class="dpad-btn" data-key="e" data-target="car">&#x21B7;</button>
+                                <button class="dpad-btn" data-key="a" data-target="car">&#x25C0;</button>
+                                <button class="dpad-btn center" data-key="s" data-target="car">&#x25BC;</button>
+                                <button class="dpad-btn" data-key="d" data-target="car">&#x25B6;</button>
+                            </div>
+                            <div class="dpad-hint">
+                                <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd>
+                            </div>
+                            <div class="dpad-hint">
+                                <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+                            </div>
+                        </div>
+
+                        <!-- 右方向键：摄像头控制 -->
+                        <div class="dpad">
+                            <h3>摄像头控制</h3>
+                            <p class="dpad-label">8 2 4 6</p>
+                            <div class="dpad-grid">
+                                <button class="dpad-btn invisible" data-key="none">·</button>
+                                <button class="dpad-btn" data-key="8" data-target="camera">&#x25B2;</button>
+                                <button class="dpad-btn invisible" data-key="none">·</button>
+                                <button class="dpad-btn" data-key="4" data-target="camera">&#x25C0;</button>
+                                <button class="dpad-btn center" data-key="2" data-target="camera">&#x25BC;</button>
+                                <button class="dpad-btn" data-key="6" data-target="camera">&#x25B6;</button>
+                            </div>
+                            <div class="dpad-hint">
+                                <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 识别控制按钮 -->
+                    <div class="yolo-controls">
+                        <button id="btn-start" class="btn btn-start">
+                            <span class="btn-icon">&#x25B6;</span> 启动识别
+                        </button>
+                        <button id="btn-stop" class="btn btn-stop" disabled>
+                            <span class="btn-icon">&#x25A0;</span> 停止识别
+                        </button>
+                    </div>
+                </section>
+
+                <!-- 调试日志区 -->
+                <section class="log-section">
+                    <h3>调试日志</h3>
+                    <div class="log-controls">
+                        <button id="btn-clear-log" class="btn-small">清空</button>
+                        <button id="btn-pause-log" class="btn-small">暂停</button>
+                    </div>
+                    <div id="log-container" class="log-container">
+                        <div class="log-placeholder">等待 YOLO 识别启动...</div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 右栏：视频流 -->
+            <div class="right-panel">
+                <section class="video-section">
+                    <h3>视频流</h3>
+                    <div id="video-container" class="video-container">
+                        <div id="video-placeholder" class="video-placeholder">
+                            <div class="video-placeholder-inner">
+                                <span class="video-icon">&#x25A0;</span>
+                                <p>启动识别后显示画面</p>
+                            </div>
+                        </div>
+                        <img id="video-stream" src="" alt="MJPEG Stream" style="display:none;">
+                    </div>
+                </section>
+                <!-- 识别信息预留区 -->
+                <section class="info-section">
+                    <h3>检测信息</h3>
+                    <div id="info-placeholder" class="info-placeholder">
+                        <p>植物类型: --</p>
+                        <p>浇水量: --</p>
+                        <p>其他信息: --</p>
+                    </div>
+                    <!-- 检测坐标显示 -->
+                    <div class="coord-section">
+                        <p class="coord-label">检测坐标 (左上x, 左上y, 右下x, 右下y, 置信度):</p>
+                        <pre id="coord-data" class="coord-data">等待识别数据...</pre>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- 底部信息 -->
+        <footer class="footer">
+            <span>YOLO Plant Detection Web Controller</span>
+            <span id="footer-info">SocketIO 初始化中...</span>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/controller.js') }}"></script>
+</body>
+</html>
